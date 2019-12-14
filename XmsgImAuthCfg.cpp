@@ -80,6 +80,10 @@ shared_ptr<XmsgImAuthCfg> XmsgImAuthCfg::load(const char* path)
 		return nullptr;
 	if (!cfg->loadXmsgNeN2hCfg(root))
 		return nullptr;
+	if (!cfg->loadXmsgApAddrCfg(root))
+		return nullptr;
+	if (!cfg->loadXmsgOssAddrCfg(root))
+		return nullptr;
 	if (!cfg->loadMiscCfg(root))
 		return nullptr;
 	LOG_INFO("load config file successful, cfg: %s", cfg->toString().c_str())
@@ -273,6 +277,86 @@ bool XmsgImAuthCfg::loadMongodbCfg(XMLElement* root)
 	return true;
 }
 
+bool XmsgImAuthCfg::loadXmsgApAddrCfg(XMLElement* root)
+{
+	auto node = root->FirstChildElement("x-msg-ap-addr");
+	if (node == NULL)
+	{
+		LOG_ERROR("load config failed, node: <x-msg-ap-addr>")
+		return false;
+	}
+	node = node->FirstChildElement("addr");
+	while (node != NULL)
+	{
+		string name = Misc::strAtt(node, "name");
+		string host = Misc::strAtt(node, "host");
+		string proto = Misc::strAtt(node, "proto");
+		if (name.empty() || host.empty() || proto.empty())
+		{
+			LOG_ERROR("load config failed, node: <x-msg-ap-addr>")
+			return false;
+		}
+		auto ap = this->cfgPb->mutable_xmsgapserviceaddr();
+		auto it = ap->find(name);
+		if (it == ap->end())
+		{
+			XmsgImAuthPubService service;
+			service.set_name(name);
+			auto addr = service.add_addr();
+			addr->set_host(host);
+			addr->set_proto(proto);
+			ap->insert(MapPair<string, XmsgImAuthPubService>(name, service));
+		} else
+		{
+			auto addr = it->second.add_addr();
+			addr->set_host(host);
+			addr->set_proto(proto);
+		}
+		node = node->NextSiblingElement("addr");
+	}
+	return true;
+}
+
+bool XmsgImAuthCfg::loadXmsgOssAddrCfg(XMLElement* root)
+{
+	auto node = root->FirstChildElement("x-msg-oss-addr");
+	if (node == NULL)
+	{
+		LOG_ERROR("load config failed, node: <x-msg-oss-addr>")
+		return false;
+	}
+	node = node->FirstChildElement("addr");
+	while (node != NULL)
+	{
+		string name = Misc::strAtt(node, "name");
+		string host = Misc::strAtt(node, "host");
+		string proto = Misc::strAtt(node, "proto");
+		if (name.empty() || host.empty() || proto.empty())
+		{
+			LOG_ERROR("load config failed, node: <x-msg-oss-addr>")
+			return false;
+		}
+		auto ap = this->cfgPb->mutable_xmsgossserviceaddr();
+		auto it = ap->find(name);
+		if (it == ap->end())
+		{
+			XmsgImAuthPubService service;
+			service.set_name(name);
+			auto addr = service.add_addr();
+			addr->set_host(host);
+			addr->set_proto(proto);
+			ap->insert(MapPair<string, XmsgImAuthPubService>(name, service));
+		} else
+		{
+			auto addr = it->second.add_addr();
+			addr->set_host(host);
+			addr->set_proto(proto);
+		}
+		node = node->NextSiblingElement("addr");
+	}
+	return true;
+}
+
 bool XmsgImAuthCfg::loadMiscCfg(XMLElement* root)
 {
 	auto node = root->FirstChildElement("misc");
@@ -282,20 +366,10 @@ bool XmsgImAuthCfg::loadMiscCfg(XMLElement* root)
 		return false;
 	}
 	auto misc = this->cfgPb->mutable_misc();
-	misc->set_xmsgapserviceaddr(Misc::strAtt(node, "xmsgApServiceAddr"));
-	if (misc->xmsgapserviceaddr().empty())
-	{
-		LOG_ERROR("load config failed, node: <misc><xmsgApServiceAddr>")
-		return false;
-	}
-	misc->set_xmsgossserviceaddr(Misc::strAtt(node, "xmsgOssServiceAddr"));
-	if (misc->xmsgossserviceaddr().empty())
-	{
-		LOG_ERROR("load config failed, node: <misc><xmsgOssServiceAddr>")
-		return false;
-	}
 	misc->set_registeenable(Misc::strAtt(node, "registeEnable") == "true");
 	misc->set_tokenexpiredseconds(Misc::intAtt(node, "tokenExpiredSeconds"));
+	misc->set_tokensavebatchsize(Misc::hexOrInt(node, "tokenSaveBatchSize"));
+	misc->set_tokensavebatchsize(misc->tokensavebatchsize() < 1 ? 1 : misc->tokensavebatchsize());
 	return true;
 }
 
@@ -319,6 +393,7 @@ shared_ptr<XscHttpCfg> XmsgImAuthCfg::pubXscHttpServerCfg()
 	httpCfg->tracing = this->cfgPb->pubhttp().tcp().tracing();
 	httpCfg->heartbeat = this->cfgPb->pubhttp().tcp().heartbeat();
 	httpCfg->n2hZombie = this->cfgPb->pubhttp().tcp().n2hzombie();
+	httpCfg->n2hTransTimeout = this->cfgPb->pubhttp().tcp().n2htranstimeout();
 	httpCfg->n2hTracing = this->cfgPb->pubhttp().tcp().n2htracing();
 	httpCfg->h2nReConn = this->cfgPb->pubhttp().tcp().h2nreconn();
 	httpCfg->h2nTransTimeout = this->cfgPb->pubhttp().tcp().h2ntranstimeout();
@@ -345,6 +420,7 @@ shared_ptr<XscWebSocketCfg> XmsgImAuthCfg::pubXscWebSocketServerCfg()
 	webSocketCfg->tracing = this->cfgPb->pubwebsocket().tcp().tracing();
 	webSocketCfg->heartbeat = this->cfgPb->pubwebsocket().tcp().heartbeat();
 	webSocketCfg->n2hZombie = this->cfgPb->pubwebsocket().tcp().n2hzombie();
+	webSocketCfg->n2hTransTimeout = this->cfgPb->pubwebsocket().tcp().n2htranstimeout();
 	webSocketCfg->n2hTracing = this->cfgPb->pubwebsocket().tcp().n2htracing();
 	webSocketCfg->h2nReConn = this->cfgPb->pubwebsocket().tcp().h2nreconn();
 	webSocketCfg->h2nTransTimeout = this->cfgPb->pubwebsocket().tcp().h2ntranstimeout();
@@ -363,22 +439,22 @@ shared_ptr<XmsgImAuthCfgXscTcpServer> XmsgImAuthCfg::loadXscTcpCfg(XMLElement* n
 		LOG_ERROR("load config failed, node: <xsc-server>");
 		return nullptr;
 	}
-	shared_ptr<XmsgImAuthCfgXscTcpServer> tcpCfg(new XmsgImAuthCfgXscTcpServer());
-	tcpCfg->set_addr(Misc::strAtt(node, "addr"));
-	tcpCfg->set_worker(Misc::hexOrInt(node, "worker"));
-	tcpCfg->set_peerlimit(Misc::hexOrInt(node, "peerLimit"));
-	tcpCfg->set_peermtu(Misc::hexOrInt(node, "peerMtu"));
-	tcpCfg->set_peerrcvbuf(Misc::hexOrInt(node, "peerRcvBuf"));
-	tcpCfg->set_peersndbuf(Misc::hexOrInt(node, "peerSndBuf"));
-	tcpCfg->set_lazyclose(Misc::hexOrInt(node, "lazyClose"));
-	tcpCfg->set_tracing("true" == Misc::strAtt(node, "tracing"));
-	tcpCfg->set_heartbeat(Misc::hexOrInt(node, "heartbeat"));
-	tcpCfg->set_n2hzombie(Misc::hexOrInt(node, "n2hZombie"));
-	tcpCfg->set_n2htranstimeout(Misc::hexOrInt(node, "n2hTransTimeout"));
-	tcpCfg->set_n2htracing("true" == Misc::strAtt(node, "n2hTracing"));
-	tcpCfg->set_h2nreconn(Misc::hexOrInt(node, "h2nReConn"));
-	tcpCfg->set_h2ntranstimeout(Misc::hexOrInt(node, "h2nTransTimeout"));
-	return tcpCfg;
+	shared_ptr<XmsgImAuthCfgXscTcpServer> tcpServer(new XmsgImAuthCfgXscTcpServer());
+	tcpServer->set_addr(Misc::strAtt(node, "addr"));
+	tcpServer->set_worker(Misc::hexOrInt(node, "worker"));
+	tcpServer->set_peerlimit(Misc::hexOrInt(node, "peerLimit"));
+	tcpServer->set_peermtu(Misc::hexOrInt(node, "peerMtu"));
+	tcpServer->set_peerrcvbuf(Misc::hexOrInt(node, "peerRcvBuf"));
+	tcpServer->set_peersndbuf(Misc::hexOrInt(node, "peerSndBuf"));
+	tcpServer->set_lazyclose(Misc::hexOrInt(node, "lazyClose"));
+	tcpServer->set_tracing("true" == Misc::strAtt(node, "tracing"));
+	tcpServer->set_heartbeat(Misc::hexOrInt(node, "heartbeat"));
+	tcpServer->set_n2hzombie(Misc::hexOrInt(node, "n2hZombie"));
+	tcpServer->set_n2htranstimeout(Misc::hexOrInt(node, "n2hTransTimeout"));
+	tcpServer->set_n2htracing("true" == Misc::strAtt(node, "n2hTracing"));
+	tcpServer->set_h2nreconn(Misc::hexOrInt(node, "h2nReConn"));
+	tcpServer->set_h2ntranstimeout(Misc::hexOrInt(node, "h2nTransTimeout"));
+	return tcpServer;
 }
 
 shared_ptr<XmsgImAuthCfgXscHttpServer> XmsgImAuthCfg::loadXscHttpCfg(XMLElement* node)

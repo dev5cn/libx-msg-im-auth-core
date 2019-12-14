@@ -47,6 +47,8 @@ private:
 	bool loadXmsgNeN2hCfg(XMLElement* root); 
 	bool loadMysqlCfg(XMLElement* root); 
 	bool loadMongodbCfg(XMLElement* root); 
+	bool loadXmsgApAddrCfg(XMLElement* root); 
+	bool loadXmsgOssAddrCfg(XMLElement* root); 
 	bool loadMiscCfg(XMLElement* root); 
 private:
 	shared_ptr<XmsgImAuthCfgXscTcpServer> loadXscTcpCfg(XMLElement* node); 
